@@ -58,6 +58,18 @@ macro_rules! cfg_io_source {
     }
 }
 
+/// One of the features enabled that needs `IoSource`. That is `net` or `os-ext`
+/// on Wasi (for `pipe`).
+macro_rules! cfg_wasi_io_source {
+    ($($item:item)*) => {
+        $(
+            #[cfg(any(feature = "net", all(target_os="wasi", feature = "os-ext")))]
+            #[cfg_attr(docsrs, doc(cfg(any(feature = "net", all(target_os="wasi", feature = "os-ext")))))]
+            $item
+        )*
+    }
+}
+
 /// The `os-ext` feature is enabled, or one of the features that need `os-ext`.
 macro_rules! cfg_any_os_ext {
     ($($item:item)*) => {

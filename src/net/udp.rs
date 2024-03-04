@@ -542,6 +542,7 @@ impl UdpSocket {
 
     /// Get the value of the `IPV6_V6ONLY` option on this socket.
     #[allow(clippy::trivially_copy_pass_by_ref)]
+    #[cfg(not(wasmedge))]
     pub fn only_v6(&self) -> io::Result<bool> {
         sys::udp::only_v6(&self.inner)
     }

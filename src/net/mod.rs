@@ -28,12 +28,10 @@
 mod tcp;
 pub use self::tcp::{TcpListener, TcpStream};
 
-#[cfg(not(target_os = "wasi"))]
 mod udp;
-#[cfg(not(target_os = "wasi"))]
 pub use self::udp::UdpSocket;
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "wasi")))]
 mod uds;
-#[cfg(unix)]
-pub use self::uds::{UnixDatagram, UnixListener, UnixStream};
+#[cfg(all(unix, not(target_os = "wasi")))]
+pub use self::uds::{SocketAddr, UnixDatagram, UnixListener, UnixStream};

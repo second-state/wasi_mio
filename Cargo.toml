@@ -12,13 +12,13 @@ authors       = [
   "Thomas de Zeeuw <thomasdezeeuw@gmail.com>",
   "Tokio Contributors <team@tokio.rs>",
 ]
-description   = "Lightweight non-blocking I/O."
-homepage      = "https://github.com/tokio-rs/mio"
-repository    = "https://github.com/tokio-rs/mio"
-readme        = "README.md"
-keywords      = ["io", "async", "non-blocking"]
-categories    = ["asynchronous"]
-include       = [
+description = "Lightweight non-blocking I/O."
+homepage = "https://github.com/tokio-rs/mio"
+repository = "https://github.com/tokio-rs/mio"
+readme = "README.md"
+keywords = ["io", "async", "non-blocking"]
+categories = ["asynchronous"]
+include = [
   "Cargo.toml",
   "LICENSE",
   "README.md",
@@ -68,6 +68,7 @@ features = [
 [target.'cfg(target_os = "wasi")'.dependencies]
 wasi = "0.11.0"
 libc = "0.2.149"
+wasmedge_wasi_socket = "0.5"
 
 [dev-dependencies]
 env_logger = { version = "0.9.3", default-features = false }
