@@ -14,8 +14,8 @@ use std::fmt;
 use std::io;
 use std::net;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-#[cfg(unix)]
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+#[cfg(not(windows))]
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, FromRawSocket, IntoRawSocket, RawSocket};
 
@@ -540,6 +540,7 @@ impl UdpSocket {
 
     /// Get the value of the `IPV6_V6ONLY` option on this socket.
     #[allow(clippy::trivially_copy_pass_by_ref)]
+    #[cfg(not(wasmedge))]
     pub fn only_v6(&self) -> io::Result<bool> {
         sys::udp::only_v6(&self.inner)
     }
@@ -642,21 +643,21 @@ impl fmt::Debug for UdpSocket {
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl IntoRawFd for UdpSocket {
     fn into_raw_fd(self) -> RawFd {
         self.inner.into_inner().into_raw_fd()
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl AsRawFd for UdpSocket {
     fn as_raw_fd(&self) -> RawFd {
         self.inner.as_raw_fd()
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl FromRawFd for UdpSocket {
     /// Converts a `RawFd` to a `UdpSocket`.
     ///

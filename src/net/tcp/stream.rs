@@ -1,15 +1,12 @@
 use std::fmt;
 use std::io::{self, IoSlice, IoSliceMut, Read, Write};
 use std::net::{self, Shutdown, SocketAddr};
-#[cfg(unix)]
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
-#[cfg(target_os = "wasi")]
-use std::os::wasi::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+#[cfg(not(windows))]
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, FromRawSocket, IntoRawSocket, RawSocket};
 
 use crate::io_source::IoSource;
-#[cfg(not(target_os = "wasi"))]
 use crate::sys::tcp::{connect, new_for_addr};
 use crate::{event, Interest, Registry, Token};
 
@@ -46,7 +43,10 @@ use crate::{event, Interest, Registry, Token};
 /// # }
 /// ```
 pub struct TcpStream {
+    #[cfg(not(wasmedge))]
     inner: IoSource<net::TcpStream>,
+    #[cfg(wasmedge)]
+    inner: IoSource<wasmedge_wasi_socket::TcpStream>,
 }
 
 impl TcpStream {
@@ -80,10 +80,9 @@ impl TcpStream {
     /// entries in the routing cache.
     ///
     /// [write interest]: Interest::WRITABLE
-    #[cfg(not(target_os = "wasi"))]
     pub fn connect(addr: SocketAddr) -> io::Result<TcpStream> {
         let socket = new_for_addr(addr)?;
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         let stream = unsafe { TcpStream::from_raw_fd(socket) };
         #[cfg(windows)]
         let stream = unsafe { TcpStream::from_raw_socket(socket as _) };
@@ -103,9 +102,31 @@ impl TcpStream {
     /// The TCP stream here will not have `connect` called on it, so it
     /// should already be connected via some other means (be it manually, or
     /// the standard library).
+    #[cfg(not(wasmedge))]
     pub fn from_std(stream: net::TcpStream) -> TcpStream {
         TcpStream {
             inner: IoSource::new(stream),
+        }
+    }
+
+    /// Creates a new `TcpStream` from a `wasmedge_wasi_socket::TcpStream`.
+    ///
+    /// This function is intended to be used to wrap a TCP stream from the
+    /// standard library in the Mio equivalent. The conversion assumes nothing
+    /// about the underlying stream; it is left up to the user to set it in
+    /// non-blocking mode.
+    ///
+    /// # Note
+    ///
+    /// The TCP stream here will not have `connect` called on it, so it
+    /// should already be connected via some other means (be it manually, or
+    /// the standard library).
+    #[cfg(wasmedge)]
+    pub fn from_std(stream: net::TcpStream) -> TcpStream {
+        TcpStream {
+            inner: IoSource::new(unsafe {
+                wasmedge_wasi_socket::TcpStream::from_raw_fd(stream.into_raw_fd())
+            }),
         }
     }
 
@@ -142,7 +163,18 @@ impl TcpStream {
     /// by receiving an (writable) event. Trying to set `nodelay` on an
     /// unconnected `TcpStream` is unspecified behavior.
     pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
-        self.inner.set_nodelay(nodelay)
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.set_nodelay(nodelay)
+        }
+        #[cfg(wasmedge)]
+        {
+            let _ = nodelay;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "operation not supported on this platform",
+            ))
+        }
     }
 
     /// Gets the value of the `TCP_NODELAY` option on this socket.
@@ -157,7 +189,17 @@ impl TcpStream {
     /// by receiving an (writable) event. Trying to get `nodelay` on an
     /// unconnected `TcpStream` is unspecified behavior.
     pub fn nodelay(&self) -> io::Result<bool> {
-        self.inner.nodelay()
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.nodelay()
+        }
+        #[cfg(wasmedge)]
+        {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "operation not supported on this platform",
+            ))
+        }
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
@@ -171,7 +213,18 @@ impl TcpStream {
     /// by receiving an (writable) event. Trying to set `ttl` on an
     /// unconnected `TcpStream` is unspecified behavior.
     pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.inner.set_ttl(ttl)
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.set_ttl(ttl)
+        }
+        #[cfg(wasmedge)]
+        {
+            let _ = ttl;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "operation not supported on this platform",
+            ))
+        }
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
@@ -186,7 +239,17 @@ impl TcpStream {
     ///
     /// [link]: #method.set_ttl
     pub fn ttl(&self) -> io::Result<u32> {
-        self.inner.ttl()
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.ttl()
+        }
+        #[cfg(wasmedge)]
+        {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "operation not supported on this platform",
+            ))
+        }
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.
@@ -195,7 +258,16 @@ impl TcpStream {
     /// the field in the process. This can be useful for checking errors between
     /// calls.
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.inner.take_error()
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.take_error()
+        }
+        #[cfg(wasmedge)]
+        if let Err(e) = self.inner.as_ref().take_error() {
+            Ok(Some(e))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Receives data on the socket from the remote address to which it is
@@ -205,7 +277,19 @@ impl TcpStream {
     /// Successive calls return the same data. This is accomplished by passing
     /// `MSG_PEEK` as a flag to the underlying recv system call.
     pub fn peek(&self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.peek(buf)
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.peek(buf)
+        }
+        #[cfg(wasmedge)]
+        {
+            let buf: &mut [std::mem::MaybeUninit<u8>] =
+                unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut _, buf.len()) };
+            self.inner
+                .as_ref()
+                .recv_with_flags(buf, wasmedge_wasi_socket::socket::MSG_PEEK)?;
+            Ok(buf.len())
+        }
     }
 
     /// Execute an I/O operation ensuring that the socket receives more events
@@ -345,21 +429,21 @@ impl fmt::Debug for TcpStream {
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl IntoRawFd for TcpStream {
     fn into_raw_fd(self) -> RawFd {
         self.inner.into_inner().into_raw_fd()
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl AsRawFd for TcpStream {
     fn as_raw_fd(&self) -> RawFd {
         self.inner.as_raw_fd()
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl FromRawFd for TcpStream {
     /// Converts a `RawFd` to a `TcpStream`.
     ///
@@ -396,32 +480,5 @@ impl FromRawSocket for TcpStream {
     /// non-blocking mode.
     unsafe fn from_raw_socket(socket: RawSocket) -> TcpStream {
         TcpStream::from_std(FromRawSocket::from_raw_socket(socket))
-    }
-}
-
-#[cfg(target_os = "wasi")]
-impl IntoRawFd for TcpStream {
-    fn into_raw_fd(self) -> RawFd {
-        self.inner.into_inner().into_raw_fd()
-    }
-}
-
-#[cfg(target_os = "wasi")]
-impl AsRawFd for TcpStream {
-    fn as_raw_fd(&self) -> RawFd {
-        self.inner.as_raw_fd()
-    }
-}
-
-#[cfg(target_os = "wasi")]
-impl FromRawFd for TcpStream {
-    /// Converts a `RawFd` to a `TcpStream`.
-    ///
-    /// # Notes
-    ///
-    /// The caller is responsible for ensuring that the socket is in
-    /// non-blocking mode.
-    unsafe fn from_raw_fd(fd: RawFd) -> TcpStream {
-        TcpStream::from_std(FromRawFd::from_raw_fd(fd))
     }
 }

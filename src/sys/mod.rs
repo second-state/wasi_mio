@@ -51,7 +51,7 @@ cfg_os_poll! {
     }
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "wasi")))]
 cfg_os_poll! {
     mod unix;
     #[allow(unused_imports)]

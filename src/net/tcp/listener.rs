@@ -1,17 +1,14 @@
 use std::net::{self, SocketAddr};
-#[cfg(unix)]
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
-#[cfg(target_os = "wasi")]
-use std::os::wasi::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+#[cfg(not(windows))]
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, FromRawSocket, IntoRawSocket, RawSocket};
 use std::{fmt, io};
 
 use crate::io_source::IoSource;
 use crate::net::TcpStream;
-#[cfg(unix)]
+#[cfg(any(unix, wasmedge))]
 use crate::sys::tcp::set_reuseaddr;
-#[cfg(not(target_os = "wasi"))]
 use crate::sys::tcp::{bind, listen, new_for_addr};
 use crate::{event, sys, Interest, Registry, Token};
 
@@ -42,7 +39,10 @@ use crate::{event, sys, Interest, Registry, Token};
 /// # }
 /// ```
 pub struct TcpListener {
+    #[cfg(not(wasmedge))]
     inner: IoSource<net::TcpListener>,
+    #[cfg(wasmedge)]
+    inner: IoSource<wasmedge_wasi_socket::TcpListener>,
 }
 
 impl TcpListener {
@@ -55,10 +55,9 @@ impl TcpListener {
     /// 2. Set the `SO_REUSEADDR` option on the socket on Unix.
     /// 3. Bind the socket to the specified address.
     /// 4. Calls `listen` on the socket to prepare it to receive new connections.
-    #[cfg(not(target_os = "wasi"))]
     pub fn bind(addr: SocketAddr) -> io::Result<TcpListener> {
         let socket = new_for_addr(addr)?;
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         let listener = unsafe { TcpListener::from_raw_fd(socket) };
         #[cfg(windows)]
         let listener = unsafe { TcpListener::from_raw_socket(socket as _) };
@@ -85,8 +84,19 @@ impl TcpListener {
     /// about the underlying listener; ; it is left up to the user to set it
     /// in non-blocking mode.
     pub fn from_std(listener: net::TcpListener) -> TcpListener {
-        TcpListener {
-            inner: IoSource::new(listener),
+        #[cfg(wasmedge)]
+        {
+            TcpListener {
+                inner: IoSource::new(unsafe {
+                    wasmedge_wasi_socket::TcpListener::from_raw_fd(listener.into_raw_fd())
+                }),
+            }
+        }
+        #[cfg(not(wasmedge))]
+        {
+            TcpListener {
+                inner: IoSource::new(listener),
+            }
         }
     }
 
@@ -113,8 +123,20 @@ impl TcpListener {
     ///
     /// This value sets the time-to-live field that is used in every packet sent
     /// from this socket.
+
     pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.inner.set_ttl(ttl)
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.set_ttl(ttl)
+        }
+        #[cfg(wasmedge)]
+        {
+            let _ = ttl;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "operation not supported on this platform",
+            ))
+        }
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
@@ -122,8 +144,19 @@ impl TcpListener {
     /// For more information about this option, see [`set_ttl`][link].
     ///
     /// [link]: #method.set_ttl
+
     pub fn ttl(&self) -> io::Result<u32> {
-        self.inner.ttl()
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.ttl()
+        }
+        #[cfg(wasmedge)]
+        {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "operation not supported on this platform",
+            ))
+        }
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.
@@ -132,7 +165,16 @@ impl TcpListener {
     /// the field in the process. This can be useful for checking errors between
     /// calls.
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.inner.take_error()
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.take_error()
+        }
+        #[cfg(wasmedge)]
+        if let Err(e) = self.inner.as_ref().take_error() {
+            Ok(Some(e))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -166,21 +208,21 @@ impl fmt::Debug for TcpListener {
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl IntoRawFd for TcpListener {
     fn into_raw_fd(self) -> RawFd {
         self.inner.into_inner().into_raw_fd()
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl AsRawFd for TcpListener {
     fn as_raw_fd(&self) -> RawFd {
         self.inner.as_raw_fd()
     }
 }
 
-#[cfg(unix)]
+#[cfg(not(windows))]
 impl FromRawFd for TcpListener {
     /// Converts a `RawFd` to a `TcpListener`.
     ///
@@ -217,32 +259,5 @@ impl FromRawSocket for TcpListener {
     /// non-blocking mode.
     unsafe fn from_raw_socket(socket: RawSocket) -> TcpListener {
         TcpListener::from_std(FromRawSocket::from_raw_socket(socket))
-    }
-}
-
-#[cfg(target_os = "wasi")]
-impl IntoRawFd for TcpListener {
-    fn into_raw_fd(self) -> RawFd {
-        self.inner.into_inner().into_raw_fd()
-    }
-}
-
-#[cfg(target_os = "wasi")]
-impl AsRawFd for TcpListener {
-    fn as_raw_fd(&self) -> RawFd {
-        self.inner.as_raw_fd()
-    }
-}
-
-#[cfg(target_os = "wasi")]
-impl FromRawFd for TcpListener {
-    /// Converts a `RawFd` to a `TcpListener`.
-    ///
-    /// # Notes
-    ///
-    /// The caller is responsible for ensuring that the socket is in
-    /// non-blocking mode.
-    unsafe fn from_raw_fd(fd: RawFd) -> TcpListener {
-        TcpListener::from_std(FromRawFd::from_raw_fd(fd))
     }
 }
