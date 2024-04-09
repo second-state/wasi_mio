@@ -69,7 +69,7 @@ impl Selector {
         self.state.wake(token)
     }
 
-    #[cfg(feature = "net")]
+    #[cfg(debug_assertions)]
     pub fn id(&self) -> usize {
         self.state.id
     }
@@ -108,7 +108,7 @@ struct SelectorState {
     operations_complete: Condvar,
 
     /// This selectors id.
-    #[cfg(feature = "net")]
+    #[cfg(debug_assertions)]
     id: usize,
 }
 
