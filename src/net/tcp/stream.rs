@@ -170,10 +170,16 @@ impl TcpStream {
         #[cfg(wasmedge)]
         {
             let _ = nodelay;
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "operation not supported on this platform",
-            ))
+            #[cfg(debug_assertions)]
+            {
+                if cfg!(skip_wasi_unsupported) {
+                    Ok(())
+                } else {
+                    unimplemented!("operation not supported on this platform");
+                }
+            }
+            #[cfg(not(debug_assertions))]
+            Ok(())
         }
     }
 
@@ -195,10 +201,19 @@ impl TcpStream {
         }
         #[cfg(wasmedge)]
         {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "operation not supported on this platform",
-            ))
+            #[cfg(debug_assertions)]
+            {
+                if cfg!(skip_wasi_unsupported) {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::Unsupported,
+                        "operation not supported on this platform",
+                    ))
+                } else {
+                    unimplemented!("operation not supported on this platform");
+                }
+            }
+            #[cfg(not(debug_assertions))]
+            Ok(false)
         }
     }
 
@@ -220,10 +235,16 @@ impl TcpStream {
         #[cfg(wasmedge)]
         {
             let _ = ttl;
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "operation not supported on this platform",
-            ))
+            #[cfg(debug_assertions)]
+            {
+                if cfg!(skip_wasi_unsupported) {
+                    Ok(())
+                } else {
+                    unimplemented!("operation not supported on this platform");
+                }
+            }
+            #[cfg(not(debug_assertions))]
+            Ok(())
         }
     }
 
@@ -243,12 +264,22 @@ impl TcpStream {
         {
             self.inner.ttl()
         }
+
         #[cfg(wasmedge)]
         {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "operation not supported on this platform",
-            ))
+            #[cfg(debug_assertions)]
+            {
+                if cfg!(skip_wasi_unsupported) {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::Unsupported,
+                        "operation not supported on this platform",
+                    ))
+                } else {
+                    unimplemented!("operation not supported on this platform");
+                }
+            }
+            #[cfg(not(debug_assertions))]
+            Ok(0)
         }
     }
 
