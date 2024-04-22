@@ -82,7 +82,7 @@ pub struct Waker {
 impl Waker {
     /// Create a new `Waker`.
     pub fn new(registry: &Registry, token: Token) -> io::Result<Waker> {
-        #[cfg(debug_assertions)]
+        #[cfg(all(debug_assertions, not(wasmedge)))]
         registry.register_waker();
         sys::Waker::new(registry.selector(), token).map(|inner| Waker { inner })
     }

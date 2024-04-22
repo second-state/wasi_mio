@@ -17,6 +17,8 @@ cfg_os_poll! {
     cfg_io_source!{
         mod poll;
         pub use poll::*;
+        pub mod waker;
+        pub use waker::Waker;
     }
 }
 
