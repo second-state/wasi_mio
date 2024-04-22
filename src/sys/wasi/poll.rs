@@ -174,17 +174,25 @@ impl SelectorState {
 
         let mut fds = self.fds.lock().unwrap();
 
-        if self
+        let notified = self
             .notify_waker
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
                 if v == 0 {
                     None
                 } else {
-                    Some(v - 1)
+                    Some(0)
                 }
             })
-            .is_ok()
-        {
+            .is_ok();
+
+        if notified {
+            let pending_wake_token = self.pending_wake_token.lock().unwrap().take();
+            if let Some(pending_wake_token) = pending_wake_token {
+                events.push(Event {
+                    token: pending_wake_token,
+                    events: 1,
+                });
+            }
             return Ok(());
         }
 
