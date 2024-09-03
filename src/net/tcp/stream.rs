@@ -404,11 +404,38 @@ impl<'a> Read for &'a TcpStream {
 
 impl Write for TcpStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.inner.do_io(|mut inner| inner.write(buf))
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.do_io(|mut inner| inner.write(buf))
+        }
+        #[cfg(wasmedge)]
+        {
+            let r = self.inner.do_io(|mut inner| inner.write(buf));
+            if let Ok(n) = r {
+                if n < buf.len() {
+                    self.inner.reset_event()?;
+                }
+            }
+            r
+        }
     }
 
     fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
-        self.inner.do_io(|mut inner| inner.write_vectored(bufs))
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.do_io(|mut inner| inner.write_vectored(bufs))
+        }
+        #[cfg(wasmedge)]
+        {
+            let buf_len: usize = bufs.iter().map(|b| b.len()).sum();
+            let r = self.inner.do_io(|mut inner| inner.write_vectored(bufs));
+            if let Ok(n) = r {
+                if n < buf_len {
+                    self.inner.reset_event()?;
+                }
+            }
+            r
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -418,11 +445,38 @@ impl Write for TcpStream {
 
 impl<'a> Write for &'a TcpStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.inner.do_io(|mut inner| inner.write(buf))
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.do_io(|mut inner| inner.write(buf))
+        }
+        #[cfg(wasmedge)]
+        {
+            let r = self.inner.do_io(|mut inner| inner.write(buf));
+            if let Ok(n) = r {
+                if n < buf.len() {
+                    self.inner.reset_event()?;
+                }
+            }
+            r
+        }
     }
 
     fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
-        self.inner.do_io(|mut inner| inner.write_vectored(bufs))
+        #[cfg(not(wasmedge))]
+        {
+            self.inner.do_io(|mut inner| inner.write_vectored(bufs))
+        }
+        #[cfg(wasmedge)]
+        {
+            let buf_len: usize = bufs.iter().map(|b| b.len()).sum();
+            let r = self.inner.do_io(|mut inner| inner.write_vectored(bufs));
+            if let Ok(n) = r {
+                if n < buf_len {
+                    self.inner.reset_event()?;
+                }
+            }
+            r
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {

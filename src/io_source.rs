@@ -208,6 +208,13 @@ where
     }
 }
 
+#[cfg(wasmedge)]
+impl<T> IoSource<T> {
+    pub fn reset_event(&self) -> io::Result<()> {
+        self.state.reset_event()
+    }
+}
+
 /// Used to associate an `IoSource` with a `sys::Selector`.
 #[cfg(debug_assertions)]
 #[derive(Debug)]
