@@ -636,6 +636,15 @@ cfg_wasi_io_source! {
             IoSourceState { inner: None }
         }
 
+        pub fn reset_event(&self)->io::Result<()>{
+            self.inner.as_ref().map_or(Ok(()), |state| {
+                state
+                .selector
+                .reregister(state.fd, state.token, state.interests)
+            })?;
+            Ok(())
+        }
+
         pub fn do_io<T, F, R>(&self, f: F, io: &T) -> io::Result<R>
         where
         F: FnOnce(&T) -> io::Result<R>,
